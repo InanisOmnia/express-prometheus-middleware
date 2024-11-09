@@ -31,6 +31,24 @@ const defaultOptions = {
   normalizeStatus: true,
 };
 
+
+
+const socketBytes = new Map();
+/**
+ * return Bytes read delta for given socket
+ */
+function getSocketProgress(socket) {
+    const currBytesRead = socket.bytesRead;
+    let prevBytesRead;
+    if (!socketBytes.has(socket)) {
+        prevBytesRead = 0;
+    } else {
+        prevBytesRead = socketBytes.get(socket).prevBytesRead;
+    }
+    socketBytes.set(socket, {prevBytesRead: currBytesRead})
+    return (currBytesRead-prevBytesRead); // To Convert to KB: /1024;
+} 
+
 module.exports = (userOptions = {}) => {
   const options = { ...defaultOptions, ...userOptions };
   const originalLabels = ['route', 'method', 'status'];
@@ -88,7 +106,8 @@ module.exports = (userOptions = {}) => {
 
       // observe request length
       if (options.requestLengthBuckets.length) {
-        const reqLength = req.get('Content-Length');
+        // const reqLength = req.get('Content-Length');
+        const reqLength = getSocketProgress(req.socket);
         if (reqLength) {
           requestLength.observe(labels, Number(reqLength));
         }
@@ -105,7 +124,7 @@ module.exports = (userOptions = {}) => {
   });
 
   if (options.collectDefaultMetrics) {
-    // when this file is required, we will start to collect automatically
+    // when this file is required/imported, we will start to collect automatically
     // default metrics include common cpu and head usage metrics that can be
     // used to calculate saturation of the service
     Prometheus.collectDefaultMetrics({
